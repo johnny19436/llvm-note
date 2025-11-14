@@ -1,0 +1,83 @@
+                           Copyright (c) 2025 林哲安 (Johnny Lin)
+
+Scalar Evolution Analysis (SCEV) describe how numeric values change as a program runs 
+inside loops. This is useful for understanding iteration counts, simplifying arithmetic, 
+and enabling optimizations like loop unrolling or vectorization.
+
+0.  What It Does
+
+    Scalar Evolution builds a symbolic model of how values evolve. For example:
+
+---
+for (int i = 0; i < N; i++)
+  sum += i;
+---
+
+    The variable "i" increases by one every loop. Scalar Evolution represents this as
+
+        {0,+,1}<L>
+
+    which means “start at 0, add 1 every trip through loop L.”
+
+1.  The Idea of a SCEV
+
+    Each value in LLVM can be described by a SCEV expression:
+
+      - constants are fixed numbers
+      - unknowns are values SCEV cannot analyze
+      - add, multiply, and recurrence expressions show relationships
+      - {start,+,step}<L> describes a repeating pattern in loop L
+
+    These expressions let LLVM reason about loops without executing them.
+
+2.  How It Is Used
+
+    Optimizations rely on this analysis to:
+      - detect loop trip counts
+      - eliminate redundant computations
+      - replace expensive operations with simpler ones
+      - decide if loops can be safely vectorized
+
+3.  Simple Example
+
+    In LLVM IR:
+
+---
+for.body:
+  %i = phi i32 [0, %entry], [%inc, %for.body]
+  %inc = add i32 %i, 1
+---
+
+    Scalar Evolution says:
+
+        %i  -->  {0,+,1}<for.body>
+
+    So LLVM knows "%i" is a linear induction variable that starts at 0 and increases
+    by 1 each time.
+
+4.  A More Complicated Example
+
+    Consider this loop:
+
+---
+for (int i = 0; i < N; i++)
+  x = 3 * (i + 2) - 4;
+---
+
+    The inner pattern "(i + 2)" can be expressed as `{2,+,1}<L>`.
+    Multiplying by 3 gives `(* 3, {2,+,1}<L>)`.
+    Subtracting 4 produces the final combined expression:
+
+        (+ (* 3, {2,+,1}<L>), -4)
+
+5.  Summary
+
+    Scalar Evolution turns numeric behavior into algebra. It does not execute code,
+    but it describes it mathematically. With that knowledge, LLVM can analyze loops,
+    estimate bounds, and apply powerful optimizations.
+
+    Understanding SCEV gives insight into how LLVM “thinks” about time, iteration,
+    and arithmetic within compiled programs.
+
+References:
+[1] https://llvm.org/devmtg/2018-04/slides/Absar-ScalarEvolution.pdf
