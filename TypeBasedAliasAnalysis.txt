@@ -1,0 +1,49 @@
+                            Copyright (c) 2025 林哲安 (Johnny Lin)
+
+Type-Based Alias Analysis (TBAA) describes which memory accesses in a program can
+refer to the same location. This information allows LLVM to eliminate redundant loads,
+reorder stores safely, and apply optimizations such as vectorization.
+
+0.  What It Does
+
+    TBAA uses the language’s type system to determine aliasing. It assumes that values
+    of different types generally do not refer to the same memory. With this guarantee,
+    the compiler can safely optimize memory operations without worrying that unrelated
+    pointers secretly overlap.
+
+1.  The Idea
+
+    Each memory access is tagged with a type. If two accesses have incompatible types,
+    LLVM assumes they cannot alias. This enables:
+      - eliminating repeated loads
+      - moving stores past loads
+      - better loop optimizations
+      - improved vectorization safety
+
+2.  Simple Example
+
+    Consider:
+
+        int *p;
+        float *q;
+
+    Since int and float are unrelated types, TBAA assumes *p and *q do not overlap.
+    Therefore LLVM can reorder these operations freely.
+
+3.  A More Realistic Example
+
+    struct A { int x; };
+    struct B { float y; };
+
+    A *a;
+    B *b;
+
+    Accessing a->x and b->y is considered non-aliasing. But accessing two A objects
+    may alias unless more information is known. More precise TBAA trees can refine
+    this reasoning.
+
+4.  Summary
+
+    TBAA uses type rules to prune alias possibilities. With fewer potential overlaps,
+    LLVM becomes more aggressive in optimizing memory instructions while preserving
+    correctness.
