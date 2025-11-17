@@ -1,0 +1,133 @@
+                                Copyright (c) 2025 林哲安 (Johnny Lin)
+
+Tail Call Optimization (TCO) is a compiler optimization that removes stack growth for
+certain function calls. When a function ends by directly returning the result of a
+call, the compiler can reuse the current stack frame instead of pushing a new one.
+
+0.  What It Does
+
+    A *tail call* happens when the final action of a function is calling another
+    function and immediately returning its result.
+
+    For example:
+
+---
+return f(x);   // tail call
+---
+
+    With TCO, this call does not add a new stack frame. The current one is reused.
+    This is especially powerful for recursive functions.
+
+1.  The Idea of a Tail Call
+
+    A tail call must satisfy:
+
+      - the call is the last operation before return  
+      - no computation happens after the call  
+      - its return value is returned directly  
+
+    Consider the usual recursive factorial:
+
+---
+unsigned fac(unsigned n)
+{
+    if (n < 2) return 1;
+    return n * fac(n - 1);
+}
+---
+
+    This looks like tail recursion, but it is **not**.
+
+    Conceptually the compiler sees:
+
+---
+unsigned acc = fac(n - 1);
+return n * acc;    // multiplication happens AFTER the call → not tail position
+---
+
+    Because extra work must occur after the recursive call, TCO cannot apply.
+
+2.  Making It Tail-Recursive
+
+    We rewrite factorial to pass the accumulated value downward:
+
+---
+unsigned fac(unsigned n) {
+    return fac_tailrec(1, n);
+}
+
+unsigned fac_tailrec(unsigned acc, unsigned n) {
+    if (n < 2) return acc;
+    return fac_tailrec(n * acc, n - 1);   // tail call
+}
+---
+
+    Now the function ends **exactly** with the recursive call.
+    No work is left to do afterward → eligible for TCO.
+
+3.  How the Compiler Uses TCO
+
+    Since nothing happens after the call, the compiler can transform:
+
+---
+return fac_tailrec(n * acc, n - 1);
+---
+
+    into a loop by reusing the same frame:
+
+---
+unsigned fac_tailrec(unsigned acc, unsigned n)
+{
+TOP:
+    if (n < 2) return acc;
+    acc = n * acc;
+    n = n - 1;
+    goto TOP;
+}
+---
+
+    The recursion becomes iteration.
+
+4.  The Transformation in Full
+
+    After inlining the wrapper:
+
+---
+unsigned fac(unsigned n)
+{
+    unsigned acc = 1;
+
+TOP:
+    if (n < 2) return acc;
+    acc = n * acc;
+    n = n - 1;
+    goto TOP;
+}
+---
+
+    Which is the same as the familiar loop:
+
+---
+unsigned fac(unsigned n)
+{
+    unsigned acc = 1;
+    for (; n > 1; --n)
+        acc *= n;
+    return acc;
+}
+---
+
+    Through TCO, recursive code becomes an efficient loop with no stack growth.
+
+5.  Summary
+
+    Tail Call Optimization removes the overhead of building new stack frames when
+    a call appears in tail position. By rewriting recursive functions into
+    tail-recursive form, compilers like LLVM can transform them into simple loops.
+    This reduces stack usage, eliminates recursion depth limits, and improves speed.
+
+    Understanding TCO explains how recursion can become iteration, and why compilers
+    treat certain function calls as jumps rather than real calls.
+
+References:
+[1] https://clang.llvm.org/docs/AttributeReference.html#musttail
